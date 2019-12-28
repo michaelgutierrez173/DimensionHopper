@@ -2,6 +2,9 @@ import pygame
 import time
 import math
 import random
+import numpy as np
+from UfoAI import NeuralNetwork
+from UfoAI import NeuralNetworkTrainer
 
 
 
@@ -35,6 +38,8 @@ class Rock(object):
             self.rock_speed = lvl * 2
         self.rock_width = 25
         self.rock_height = 25
+        # changing rock speed to 1 for ai
+        #self.rock_speed = 1
 
         direction = random.randint(0,1)
         if direction == 0:
@@ -62,6 +67,21 @@ class Rock(object):
                 self.rock_startx = 775
                 self.rock_starty = 575
         else:
+            """
+            # spawn rocks in corners for AI
+            if corner == 1:
+                self.rock_startx = 0
+                self.rock_starty = 0
+            if corner == 2:
+                self.rock_startx = 775
+                self.rock_starty = 0
+            if corner == 3:
+                self.rock_startx = 0
+                self.rock_starty = 575
+            if corner == 4:
+                self.rock_startx = 775
+                self.rock_starty = 575
+            """
             self.rock_startx = random.randint(0, 775)
             self.rock_starty = random.randint(0, 575)
             while (self.rock_startx < currx+80 and self.rock_starty < curry+80) and (currx < self.rock_startx + 80 and curry < self.rock_starty + 80):
@@ -69,17 +89,22 @@ class Rock(object):
                 self.rock_starty = random.randint(0, 575)
 
 
+    def __str__(self):
+        return "x: " + str(self.rock_startx) + " y: " + str(self.rock_starty)
 
     def update(self, xcoord, ycoord):
         if self.movement == 'rand':
             self.rock_startx = self.rock_startx + self.growX
-            if self.rock_startx >= 775 or self.rock_startx <= 0:
-               self.growX = self.growX * -1
+            if self.rock_startx >= 775:
+                self.growX = self.rock_speed * -1
+            elif self.rock_startx <= 0:
+                self.growX = self.rock_speed
 
             self.rock_starty = self.rock_starty + self.growY
-            if self.rock_starty >= 575 or self.rock_starty <= 0:
-                self.growY = self.growY * -1
-
+            if self.rock_starty >= 575:
+                self.growY = self.rock_speed * -1
+            elif self.rock_starty <= 0:
+                self.growY = self.rock_speed
         else:
             if self.rock_startx > xcoord:
                 self.rock_startx -= self.rock_speed
@@ -89,7 +114,6 @@ class Rock(object):
                 self.rock_starty -= self.rock_speed
             else:
                 self.rock_starty += self.rock_speed
-
 
 
 #from Obj import Rock
@@ -114,9 +138,11 @@ yellow_light = (255, 255, 0)
 level = 1
 pause = False
 highscore = 0
+highscore_ai = 0
 gameDisplay = pygame.display.set_mode((display_width, display_height))
 pygame.display.set_caption('Dimension Hopper')
 clock = pygame.time.Clock()
+NNTrainer = NeuralNetworkTrainer(100)
 
 
 ufoImg = pygame.image.load('ufotran.png')
@@ -162,6 +188,14 @@ def message_displayarcade(text):
     time.sleep(2)
     arcade_loop()
 
+def message_displayarcade_ai(text):
+    largeText = pygame.font.SysFont("Arial", 115)
+    textSurf, textRect = text_objects(text, largeText)
+    textRect.center = (display_width/2, display_height/2)
+    gameDisplay.blit(textSurf, textRect)
+    pygame.display.update()
+    time.sleep(3)
+    arcade_loop_ai()
 
 def score_display(num, lvl):
     global highscore
@@ -172,6 +206,14 @@ def score_display(num, lvl):
         text = font.render("Score: " + str(num) + " High Score: " + str(highscore), True, white)
     gameDisplay.blit(text, (0,0))
 
+def score_display_ai(num, lvl):
+    global highscore_ai
+    font = pygame.font.SysFont("Arial", 25)
+    if lvl != 0:
+        text = font.render("Score: " + str(num) + " Dimension: " + str(lvl), True, white)
+    else:
+        text = font.render("Score: " + str(num) + " High Score: " + str(highscore_ai), True, white)
+    gameDisplay.blit(text, (0,0))
 
 def collision(ax, ay, ar, bx, by, br):
     return math.sqrt( ((ax-bx)**2) + ((ay-by)**2) ) < br + ar
@@ -187,6 +229,11 @@ def crasharcade(s):
         highscore = s
     message_displayarcade('You Crashed')
 
+def crasharcade_ai(s):
+    global highscore_ai
+    if s > highscore_ai:
+        highscore_ai = s
+    message_displayarcade_ai('You Crashed')
 
 def passed():
     global level
@@ -207,6 +254,8 @@ def button(msg,x,y,w,h,ic,ac, action):
             story_loop()
         elif click[0] == 1 and action == "arcade":
             arcade_loop()
+        elif click[0] == 1 and action == "arcade_ai":
+            arcade_loop_ai()
         elif click[0] == 1 and action == "cont":
             unpause()
         elif click[0] == 1 and action == "back":
@@ -288,18 +337,14 @@ def game_intro():
         textRect.center = (display_width / 2, display_height / 2.5)
         gameDisplay.blit(textSurf, textRect)
 
-        button("Story Mode",300,350,200,40,green,green_light, "story")
-        button("Arcade",300,400,200,40,blue,blue_light, "arcade")
+        button("Story Mode",300,300,200,40,green,green_light, "story")
+        button("Arcade",300,350,200,40,blue,blue_light, "arcade")
+        button("Arcade AI", 300, 400, 200, 40, blue, blue_light, "arcade_ai")
         button("How to Play",300,450,200,40,yellow,yellow_light, "instruct")
         button("Quit",300,500,200,40,red, red_light, "quit")
 
         pygame.display.update()
         clock.tick(15)
-
-
-
-
-
 
 
 
@@ -367,9 +412,121 @@ def arcade_loop():
         pygame.display.update()
         clock.tick(30)
 
+#returns: x,y where x is the change in x position and y is the change in y position
+def move_ai(rocks, ufoX, ufoY, neural_network):
+    # Find the closest rock
+    closest_rock_x = rocks[0].rock_startx
+    closest_rock_y = rocks[0].rock_starty
+    closest_distance = int(round(distance(ufoX, ufoY, rocks[0].rock_startx, rocks[0].rock_starty)))
+    for rock in rocks:
+        if closest_distance > int(round(distance(ufoX, ufoY, rock.rock_startx, rock.rock_starty))):
+            closest_rock_x = rock.rock_startx
+            closest_rock_y = rock.rock_starty
+            closest_distance = int(round(distance(ufoX, ufoY, rock.rock_startx, rock.rock_starty)))
 
+    # Define direction of the closest rock with respect to UFO
+    if ufoX-closest_rock_x > 0:
+        x_direction = 1
+    else:
+        x_direction = -1
+    if ufoY - closest_rock_y > 0:
+        y_direction = 1
+    else:
+        y_direction = -1
 
+    distToWall = []
+    distToWall.append(ufoY)
+    distToWall.append(display_height-ufoY)
+    distToWall.append(ufoX)
+    distToWall.append(display_width-ufoX)
+    distToWall.sort()
 
+    # Get neural network output
+    outputs = neural_network.think(np.array([distToWall[0], x_direction, y_direction]))
+    x_change = 2 * outputs[0][0] - 1
+    y_change = 2 * outputs[0][1] - 1
+
+    # Return the direction multiplied by 8 so it moves faster
+    return x_change*8, y_change*8
+
+def distance(x1, y1, x2, y2):
+    dist = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    return dist
+
+def arcade_loop_ai():
+    global pause
+    global level
+    global NNTrainer
+    level = 0
+
+    # create a list of x y coordinates for multiple UFOs and neural nets for each one
+    UFOsX = [display_width * 0.45]*100
+    UFOsY = [display_height * 0.45]*100
+    # Ten neural networks are defined in global vars
+    neural_networks = NNTrainer.NNList
+    diedNeural_networks = []
+
+    rock_count = 1
+    my_rocks = []
+    for i in range(rock_count):
+        my_rocks.append(Rock(2, 0, 0))
+    score = 0
+    gameExit = False
+    while not gameExit:
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_p:
+                    pause = True
+                    paused()
+
+        gameDisplay.fill(black)
+
+        # update and make ufo
+        for i in range(len(UFOsX)):
+            x_change, y_change = move_ai(my_rocks, UFOsX[i], UFOsY[i], neural_networks[i])
+            if display_width - ufo_width >= (UFOsX[i] + x_change) > 0:
+                UFOsX[i] += x_change
+            if display_height - ufo_height >= (UFOsY[i] + y_change) > 0:
+                UFOsY[i] += y_change
+            ufo(UFOsX[i], UFOsY[i])
+
+        # increase score
+        score += 1
+        score_display_ai(score, level)
+        if score % 100 == 0 and score < 2000:
+            my_rocks.append(Rock(2, 0, 0))
+
+        # update rocks and check for crash
+        for r in my_rocks:
+            rocks(r.rock_startx, r.rock_starty)
+            r.update(0, 0)
+            if len(UFOsX) > 0:
+                keepUFOsX = []
+                keepUFOsY = []
+                keepneural_networks = []
+                for i in range(len(UFOsX)):
+                    if collision(UFOsX[i] + 25, UFOsY[i] + 27, 19, r.rock_startx + 16, r.rock_starty + 16, 16):
+                        # Keep list of dead ufo (ordered by who died first)
+                        diedNeural_networks.append((neural_networks[i], score))
+                    else:
+                        keepUFOsX.append(UFOsX[i])
+                        keepUFOsY.append(UFOsY[i])
+                        keepneural_networks.append(neural_networks[i])
+
+                UFOsX = keepUFOsX
+                UFOsY = keepUFOsY
+                neural_networks = keepneural_networks
+            else:
+                # train network here
+                NNTrainer.train(diedNeural_networks)
+                crasharcade_ai(score)
+
+        pygame.display.update()
+        clock.tick(144)
 
 
 
