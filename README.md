@@ -3,4 +3,4 @@ I developed a game for my game design final project using Python and the pygame 
 
 To play open download the pygame library.
 
-Commented out pieces of code in the rock class should be swapped enabled for ai mode to work properly
+Commented out pieces of code in the rock class which should be swapped to enabled for ai mode to work properly
